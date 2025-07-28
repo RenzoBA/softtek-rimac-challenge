@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "additionalProperties": true,
+  "example": {
+    "foo": "bar",
+    "answer": 42,
+    "nested": { "any": ["structure", 123] }
+  }
+}

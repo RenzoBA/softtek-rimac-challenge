@@ -1,0 +1,36 @@
+{
+  "name": "rimac-reto-service",
+  "version": "1.0.0",
+  "description": "Reto Softtek/Rimac - Renzo Bocanegra [https://www.linkedin.com/in/renzo-bocanegra-dev/]",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "gen:docs": "serverless openapi generate -o docs/openapi.json -f json -a 3.0.3",
+    "upd:docs": "aws s3 sync docs/ s3://rimac-reto-service-docs-dev/ --delete",
+    "dev": "serverless offline --stage dev",
+    "build": "tsc",
+    "deploy": "serverless deploy"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.152",
+    "@types/node": "^24.0.15",
+    "serverless": "^4.17.1",
+    "serverless-dynamodb": "^0.2.56",
+    "serverless-iam-roles-per-function": "^3.2.0",
+    "serverless-offline": "^14.4.0",
+    "serverless-openapi-documenter": "^0.0.114",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.848.0",
+    "@aws-sdk/lib-dynamodb": "^3.848.0",
+    "@types/joi": "^17.2.2",
+    "aws-lambda": "^1.0.7",
+    "joi": "^17.13.3"
+  }
+}

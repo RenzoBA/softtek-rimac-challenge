@@ -1,0 +1,249 @@
+# "org" ensures this Service is used with the correct Serverless Framework Access Key.
+org: renzoba
+# "service" is the name of this project. This will also be added to your AWS resource names.
+service: rimac-reto-service
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: dev
+  tracing:
+    lambda: true
+    apiGateway: true
+  region: us-east-1
+  apiGateway:
+    shouldStartNameWithService: true
+    usagePlan:
+      quota:
+        limit: 500
+        offset: 0
+        period: MONTH
+      throttle:
+        burstLimit: 10
+        rateLimit: 20
+    apiKeys:
+      - name: fusionKey
+  environment:
+    CACHE_TTL: "30"
+    FUSION_CACHE_TABLE: FusionCache
+    FUSION_HISTORY_TABLE: FusionHistory
+    CUSTOM_DATA_TABLE: CustomData
+    WEATHER_API_KEY: 33504fcdeb2fc7db641d326ff0c7ebc4
+
+functions:
+  getFusionados:
+    handler: src/handlers/fusionados.handler
+    memorySize: 512
+    timeout: 20
+    environment:
+      CACHE_TTL: ${self:provider.environment.CACHE_TTL}
+      FUSION_CACHE_TABLE: ${self:provider.environment.FUSION_CACHE_TABLE}
+      FUSION_HISTORY_TABLE: ${self:provider.environment.FUSION_HISTORY_TABLE}
+    events:
+      - http:
+          path: fusionados
+          method: get
+          cors: true
+          documentation:
+            summary: "Get Fusionados"
+            description: "Retrieves fusionados from the cache or fetches from external APIs if not cached."
+            methodResponses:
+              - statusCode: 200
+                responseBody:
+                  description: "Successful response"
+                responseModels:
+                  application/json: GetFusionadosResponse
+              - statusCode: 400
+                responseBody:
+                  description: "Bad request"
+                responseModels:
+                  application/json: ErrorResponse
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:GetItem
+          - dynamodb:PutItem
+        Resource:
+          - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.FUSION_CACHE_TABLE}
+      - Effect: Allow
+        Action:
+          - dynamodb:PutItem
+        Resource:
+          - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.FUSION_HISTORY_TABLE}
+      - Effect: Allow
+        Action:
+          - secretsmanager:GetSecretValue
+        Resource: arn:aws:secretsmanager:${self:provider.region}:${aws:accountId}:secret:/fusion/openweather-*
+
+  postAlmacenar:
+    handler: src/handlers/almacenar.handler
+    memorySize: 256
+    timeout: 5
+    environment:
+      CUSTOM_DATA_TABLE: ${self:provider.environment.CUSTOM_DATA_TABLE}
+    events:
+      - http:
+          path: almacenar
+          method: post
+          cors: true
+          documentation:
+            summary: "Post Almacenar"
+            description: "Stores arbitrary JSON data in the CustomData table."
+            requestBody:
+              description: "Request body for storing custom data"
+              required: true
+            requestModels:
+              application/json: PostAlmacenarRequest
+            methodResponses:
+              - statusCode: 200
+                responseBody:
+                  description: "Successful response"
+                responseModels:
+                  application/json: PostAlmacenarResponse
+              - statusCode: 400
+                responseBody:
+                  description: "Bad request"
+                responseModels:
+                  application/json: ErrorResponse
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:PutItem
+        Resource:
+          - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.CUSTOM_DATA_TABLE}
+
+  getHistorial:
+    handler: src/handlers/historial.handler
+    memorySize: 256
+    timeout: 5
+    environment:
+      FUSION_HISTORY_TABLE: ${self:provider.environment.FUSION_HISTORY_TABLE}
+    events:
+      - http:
+          path: historial
+          method: get
+          cors: true
+          documentation:
+            summary: "Get Historial"
+            description: "Retrieves history of fusionados from the FusionHistory table."
+            methodResponses:
+              - statusCode: 200
+                responseBody:
+                  description: "Successful response"
+                responseModels:
+                  application/json: GetHistorialResponse
+              - statusCode: 400
+                responseBody:
+                  description: "Bad request"
+                responseModels:
+                  application/json: ErrorResponse
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+        Resource:
+          - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.FUSION_HISTORY_TABLE}
+          - arn:aws:dynamodb:${self:provider.region}:${aws:accountId}:table/${self:provider.environment.FUSION_HISTORY_TABLE}/index/byCreatedAt
+
+resources:
+  Resources:
+    FusionCacheTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: FusionCache
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: key
+            AttributeType: S
+        KeySchema:
+          - AttributeName: key
+            KeyType: HASH
+        TimeToLiveSpecification:
+          AttributeName: expiresAt
+          Enabled: true
+        SSESpecification:
+          SSEEnabled: true
+
+    FusionHistoryTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: FusionHistory
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: entityType
+            AttributeType: S
+          - AttributeName: createdAt
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+          - AttributeName: createdAt
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: byCreatedAt
+            KeySchema:
+              - AttributeName: entityType
+                KeyType: HASH
+              - AttributeName: createdAt
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+        SSESpecification:
+          SSEEnabled: true
+
+    CustomDataTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: CustomData
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        SSESpecification:
+          SSEEnabled: true
+
+custom:
+  serverless-dynamodb:
+    stages:
+      - dev
+    start:
+      docker: true
+      port: 8000
+      inMemory: true
+      migrate: true
+  documentation:
+    version: "1.0.0"
+    title: "Softterk/Rimac Reto Service API"
+    description: "This API provides endpoints for managing fusionados, storing custom data, and retrieving history."
+    models:
+      - name: "GetFusionadosResponse"
+        description: "Response for getting fusionados"
+        contentType: "application/json"
+        schema: ${file(src/models/GetFusionadosResponse.json)}
+      - name: "PostAlmacenarRequest"
+        description: "Request for storing custom data"
+        contentType: "application/json"
+        schema: ${file(src/models/PostAlmacenarRequest.json)}
+      - name: "PostAlmacenarResponse"
+        description: "Response for storing custom data"
+        contentType: "application/json"
+        schema: ${file(src/models/PostAlmacenarResponse.json)}
+      - name: "GetHistorialResponse"
+        description: "Request for getting history of fusionados"
+        contentType: "application/json"
+        schema: ${file(src/models/GetHistorialResponse.json)}
+      - name: "ErrorResponse"
+        description: "This is an error"
+        contentType: "application/json"
+        schema: ${file(src/models/ErrorResponse.json)}
+
+plugins:
+  - serverless-offline
+  - serverless-dynamodb
+  - serverless-openapi-documenter
+  - serverless-iam-roles-per-function

@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "properties": {
+    "error": {
+      "type": "string",
+      "example": "An error occurred"
+    }
+  },
+  "required": ["error"]
+}

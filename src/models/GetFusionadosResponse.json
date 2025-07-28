@@ -1,0 +1,40 @@
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "example": "Luke Skywalker"
+      },
+      "uid": {
+        "type": "string",
+        "example": "1"
+      },
+      "url": {
+        "type": "string",
+        "format": "uri",
+        "example": "https://www.swapi.tech/api/people/1"
+      },
+      "weather": {
+        "type": "object",
+        "nullable": true,
+        "properties": {
+          "description": {
+            "type": "string",
+            "example": "light rain"
+          },
+          "temp": {
+            "type": "number",
+            "example": 21.07
+          }
+        },
+        "required": ["description", "temp"]
+      },
+      "homeworld": {
+        "type": "string",
+        "example": "Tatooine"
+      }
+    }
+  }
+}
